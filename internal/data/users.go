@@ -217,3 +217,45 @@ func (m *UserModel) GetForToken(scope, tokenPlaintext string) (*User, error) {
 
 	return &user, nil
 }
+
+func (m *UserModel) GetAllForPermission(code string) ([]*User, error) {
+	query := `
+		SELECT users.id, users.created_at, users.name, users.email, users.password_hash, users.activated, users.version FROM users
+		INNER JOIN users_permissions
+		ON users.id = users_permissions.user_id
+		INNER JOIN permissions
+		ON users_permissions.permission_id = permissions.id
+		WHERE permissions.code = $1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := m.DB.QueryContext(ctx, query, code)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []*User
+	for rows.Next() {
+		var user User
+		err := rows.Scan(
+			&user.ID,
+			&user.CreatedAt,
+			&user.Name,
+			&user.Email,
+			&user.Password.hash,
+			&user.Activated,
+			&user.Version,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
+
+}
